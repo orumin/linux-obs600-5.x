@@ -120,6 +120,10 @@ bool early_boot_irqs_disabled __read_mostly;
 enum system_states system_state __read_mostly;
 EXPORT_SYMBOL(system_state);
 
+#if defined(CONFIG_OBS_LED)
+extern int obsled_out(int);
+#endif
+
 /*
  * Boot command-line arguments
  */
@@ -595,6 +599,9 @@ asmlinkage __visible void __init start_kernel(void)
 	pr_notice("%s", linux_banner);
 	early_security_init();
 	setup_arch(&command_line);
+#if defined(CONFIG_OBS_LED)
+	obsled_out(3);
+#endif
 	setup_command_line(command_line);
 	setup_nr_cpu_ids();
 	setup_per_cpu_areas();
@@ -1138,6 +1145,9 @@ static int __ref kernel_init(void *unused)
 	 * The Bourne shell can be used instead of init if we are
 	 * trying to recover a really broken machine.
 	 */
+#if defined(CONFIG_OBS_LED)
+	obsled_out(6);
+#endif
 	if (execute_command) {
 		ret = run_init_process(execute_command);
 		if (!ret)
@@ -1188,7 +1198,13 @@ static noinline void __init kernel_init_freeable(void)
 	/* Initialize page ext after all struct pages are initialized. */
 	page_ext_init();
 
+#if defined(CONFIG_OBS_LED)
+	obsled_out(4);
+#endif
 	do_basic_setup();
+#if defined(CONFIG_OBS_LED)
+	obsled_out(5);
+#endif
 
 	/* Open the /dev/console on the rootfs, this should never fail */
 	if (ksys_open((const char __user *) "/dev/console", O_RDWR, 0) < 0)

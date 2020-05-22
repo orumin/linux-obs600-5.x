@@ -17,6 +17,10 @@
 #include <asm/time.h>
 #include <asm/udbg.h>
 #include <asm/uic.h>
+#if defined(CONFIG_OBS600)
+#include <asm/dcr.h>
+#include <asm/dcr-regs.h>
+#endif
 
 #include <linux/init.h>
 #include <linux/of_platform.h>
@@ -61,7 +65,11 @@ static const char * const board[] __initconst = {
 static int __init ppc40x_probe(void)
 {
 	if (of_device_compatible_match(of_root, board)) {
+#if defined(CONFIG_OBS600)
+		mtdcri(SDR0, SDR0_MFR, mfdcri(SDR0, SDR0_MFR) & ~0x0c000000);
+#else
 		pci_set_flags(PCI_REASSIGN_ALL_RSRC);
+#endif
 		return 1;
 	}
 

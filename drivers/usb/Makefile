@@ -37,6 +37,8 @@ obj-$(CONFIG_USB_MAX3421_HCD)	+= host/
 
 obj-$(CONFIG_USB_C67X00_HCD)	+= c67x00/
 
+obj-$(CONFIG_DWC_OTG)		+= dwc_otg/
+
 obj-$(CONFIG_USB_ACM)		+= class/
 obj-$(CONFIG_USB_PRINTER)	+= class/
 obj-$(CONFIG_USB_WDM)		+= class/
@@ -55,6 +57,7 @@ obj-$(CONFIG_EARLY_PRINTK_USB)	+= early/
 
 obj-$(CONFIG_USB_ATM)		+= atm/
 obj-$(CONFIG_USB_SPEEDTOUCH)	+= atm/
+obj-$(CONFIG_DWC_OTG)    += dwc_otg/
 
 obj-$(CONFIG_USB_MUSB_HDRC)	+= musb/
 obj-$(CONFIG_USB_CHIPIDEA)	+= chipidea/

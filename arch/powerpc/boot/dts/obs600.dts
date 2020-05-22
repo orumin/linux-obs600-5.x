@@ -307,6 +307,19 @@
 				reg = <0xef600800 0x50>;
 			};
 		};
+		USBOTG0: usbotg@0xef6c0000 {
+		compatible = "amcc,dwc-otg", "snps,dwc2", "amcc,dwc_otg";
+		reg = <0xef6c0000 0x10000>;
+		interrupt-parent = <&USBOTG0>;
+		interrupts = <0x0 0x1 0x2>;
+		#interrupt-cells = <0x1>;
+		#address-cells = <0x0>;
+		#size-cells = <0x0>;
+		interrupt-map = </* USB-OTG */ 0x0 &UIC2 0x1e 0x4
+						/* HIGH-POWER */ 0x1 &UIC1 0x1a 0x8
+						/* DMA */ 0x2 &UIC0 0xc 0x4>;
+		interrupt-map-mask = <0xffffffff>;
+		};
 	};
         chosen {
                 stdout-path = "/plb/opb/serial@ef600200";

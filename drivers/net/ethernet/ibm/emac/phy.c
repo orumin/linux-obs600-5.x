@@ -73,6 +73,11 @@ int emac_mii_reset_phy(struct mii_phy *phy)
 	if ((val & BMCR_ISOLATE) && limit > 0)
 		phy_write(phy, MII_BMCR, val & ~BMCR_ISOLATE);
 
+#ifdef CONFIG_OBS600
+	phy_write(phy, 0x1c, 0xa410);
+	phy_write(phy, 0x1c, 0x8804);
+#endif
+
 	return limit <= 0;
 }
 

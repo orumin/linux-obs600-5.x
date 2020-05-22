@@ -442,6 +442,10 @@ config MATH_EMULATION_HW_UNIMPLEMENTED
 
 endchoice
 
+config MATH_EMULATION_JAVA
+	bool "Modified math emulation for Sun Java"
+	depends on MATH_EMULATION && OBS600
+
 config PPC_TRANSACTIONAL_MEM
 	bool "Transactional Memory support for POWERPC"
 	depends on PPC_BOOK3S_64

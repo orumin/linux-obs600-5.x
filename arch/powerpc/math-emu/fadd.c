@@ -33,6 +33,23 @@ fadd(void *frD, void *frA, void *frB)
 	printk("D: %ld %lu %lu %ld (%ld)\n", R_s, R_f1, R_f0, R_e, R_c);
 #endif
 
+#if defined(CONFIG_MATH_EMULATION_JAVA)
+	// for Sun Java
+	__FPU_FPSCR &= ~(0x1f000); // clear rezult bit
+	switch (R_c) {
+	case FP_CLS_NAN:
+		__FPU_FPSCR |= 0x00011000;
+		break;
+	case FP_CLS_INF:
+		if(R_s) {
+			__FPU_FPSCR |= 0x00009000;
+		} else {
+			__FPU_FPSCR |= 0x00005000;
+		}
+		break;
+	}
+#endif
+
 	__FP_PACK_D(frD, R);
 
 	return FP_CUR_EXCEPTIONS;

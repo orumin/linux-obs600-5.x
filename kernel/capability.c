@@ -152,6 +152,11 @@ SYSCALL_DEFINE2(capget, cap_user_header_t, header, cap_user_data_t, dataptr)
 	unsigned tocopy;
 	kernel_cap_t pE, pI, pP;
 
+#ifdef CONFIG_OBS600   /* For bind v9.5 */
+	if(dataptr == NULL)
+		header->version = 0;
+#endif
+
 	ret = cap_validate_magic(header, &tocopy);
 	if ((dataptr == NULL) || (ret != 0))
 		return ((dataptr == NULL) && (ret == -EINVAL)) ? 0 : ret;

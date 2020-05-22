@@ -142,7 +142,27 @@ static ssize_t mtd_flags_show(struct device *dev,
 
 	return snprintf(buf, PAGE_SIZE, "0x%lx\n", (unsigned long)mtd->flags);
 }
+#if defined(CONFIG_MACH_OBSAX3) || defined(CONFIG_MACH_OBSA7)
+static ssize_t mtd_flags_set(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned int tmp = 0;
+	struct mtd_info *mtd = dev_get_drvdata(dev);
+
+	if(sscanf(buf, "%x", &tmp) != 1)
+		return -EINVAL;
+
+	if(tmp == 0x800 || tmp == 0xc00)
+		mtd->flags = tmp;
+	else
+		return -EINVAL;
+
+	return count;
+}
+static DEVICE_ATTR(flags, 0664, mtd_flags_show, mtd_flags_set);
+#else
 static DEVICE_ATTR(flags, S_IRUGO, mtd_flags_show, NULL);
+#endif
 
 static ssize_t mtd_size_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
