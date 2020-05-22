@@ -20,8 +20,6 @@
 #define S35390A_CMD_STATUS1	0
 #define S35390A_CMD_STATUS2	1
 #define S35390A_CMD_TIME1	2
-#define S35390A_CMD_TIME2	3
-#define S35390A_CMD_INT2_REG1	5
 
 #define S35390A_BYTE_YEAR	0
 #define S35390A_BYTE_MONTH	1
@@ -31,11 +29,6 @@
 #define S35390A_BYTE_MINS	5
 #define S35390A_BYTE_SECS	6
 
-#define S35390A_ALRM_BYTE_WDAY	0
-#define S35390A_ALRM_BYTE_HOURS	1
-#define S35390A_ALRM_BYTE_MINS	2
-
-/* flags for STATUS1 */
 #define S35390A_FLAG_POC	0x01
 #define S35390A_FLAG_BLD	0x02
 #define S35390A_FLAG_INT2	0x04
@@ -44,13 +37,6 @@
 
 /* flag for STATUS2 */
 #define S35390A_FLAG_TEST	0x01
-
-#define S35390A_INT2_MODE_MASK		0xF0
-
-#define S35390A_INT2_MODE_NOINTR	0x00
-#define S35390A_INT2_MODE_FREQ		0x10
-#define S35390A_INT2_MODE_ALARM		0x40
-#define S35390A_INT2_MODE_PMIN_EDG	0x20
 
 static const struct i2c_device_id s35390a_id[] = {
 	{ "s35390a", 0 },
@@ -75,11 +61,7 @@ static int s35390a_set_reg(struct s35390a *s35390a, int reg, char *buf, int len)
 {
 	struct i2c_client *client = s35390a->client[reg];
 	struct i2c_msg msg[] = {
-		{
-			.addr = client->addr,
-			.len = len,
-			.buf = buf
-		},
+		{ client->addr, 0, len, buf },
 	};
 
 	if ((i2c_transfer(client->adapter, msg, 1)) != 1)
@@ -92,12 +74,7 @@ static int s35390a_get_reg(struct s35390a *s35390a, int reg, char *buf, int len)
 {
 	struct i2c_client *client = s35390a->client[reg];
 	struct i2c_msg msg[] = {
-		{
-			.addr = client->addr,
-			.flags = I2C_M_RD,
-			.len = len,
-			.buf = buf
-		},
+		{ client->addr, I2C_M_RD, len, buf },
 	};
 
 	if ((i2c_transfer(client->adapter, msg, 1)) != 1)
@@ -276,154 +253,9 @@ static int s35390a_rtc_read_time(struct device *dev, struct rtc_time *tm)
 	return 0;
 }
 
-static int s35390a_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alm)
-{
-	struct i2c_client *client = to_i2c_client(dev);
-	struct s35390a *s35390a = i2c_get_clientdata(client);
-	char buf[3], sts = 0;
-	int err, i;
-
-	dev_dbg(&client->dev, "%s: alm is secs=%d, mins=%d, hours=%d mday=%d, "\
-		"mon=%d, year=%d, wday=%d\n", __func__, alm->time.tm_sec,
-		alm->time.tm_min, alm->time.tm_hour, alm->time.tm_mday,
-		alm->time.tm_mon, alm->time.tm_year, alm->time.tm_wday);
-
-	/* disable interrupt (which deasserts the irq line) */
-	err = s35390a_set_reg(s35390a, S35390A_CMD_STATUS2, &sts, sizeof(sts));
-	if (err < 0)
-		return err;
-
-	/* clear pending interrupt (in STATUS1 only), if any */
-	err = s35390a_get_reg(s35390a, S35390A_CMD_STATUS1, &sts, sizeof(sts));
-	if (err < 0)
-		return err;
-
-	if (alm->enabled)
-		sts = S35390A_INT2_MODE_ALARM;
-	else
-		sts = S35390A_INT2_MODE_NOINTR;
-
-	/* This chip expects the bits of each byte to be in reverse order */
-	sts = bitrev8(sts);
-
-	/* set interupt mode*/
-	err = s35390a_set_reg(s35390a, S35390A_CMD_STATUS2, &sts, sizeof(sts));
-	if (err < 0)
-		return err;
-
-	if (alm->time.tm_wday != -1)
-		buf[S35390A_ALRM_BYTE_WDAY] = bin2bcd(alm->time.tm_wday) | 0x80;
-	else
-		buf[S35390A_ALRM_BYTE_WDAY] = 0;
-
-	buf[S35390A_ALRM_BYTE_HOURS] = s35390a_hr2reg(s35390a,
-			alm->time.tm_hour) | 0x80;
-	buf[S35390A_ALRM_BYTE_MINS] = bin2bcd(alm->time.tm_min) | 0x80;
-
-	if (alm->time.tm_hour >= 12)
-		buf[S35390A_ALRM_BYTE_HOURS] |= 0x40;
-
-	for (i = 0; i < 3; ++i)
-		buf[i] = bitrev8(buf[i]);
-
-	err = s35390a_set_reg(s35390a, S35390A_CMD_INT2_REG1, buf,
-								sizeof(buf));
-
-	return err;
-}
-
-static int s35390a_rtc_read_alarm(struct device *dev, struct rtc_wkalrm *alm)
-{
-	struct i2c_client *client = to_i2c_client(dev);
-	struct s35390a *s35390a = i2c_get_clientdata(client);
-	char buf[3], sts;
-	int i, err;
-
-	err = s35390a_get_reg(s35390a, S35390A_CMD_STATUS2, &sts, sizeof(sts));
-	if (err < 0)
-		return err;
-
-	if ((bitrev8(sts) & S35390A_INT2_MODE_MASK) != S35390A_INT2_MODE_ALARM) {
-		/*
-		 * When the alarm isn't enabled, the register to configure
-		 * the alarm time isn't accessible.
-		 */
-		alm->enabled = 0;
-		return 0;
-	} else {
-		alm->enabled = 1;
-	}
-
-	err = s35390a_get_reg(s35390a, S35390A_CMD_INT2_REG1, buf, sizeof(buf));
-	if (err < 0)
-		return err;
-
-	/* This chip returns the bits of each byte in reverse order */
-	for (i = 0; i < 3; ++i)
-		buf[i] = bitrev8(buf[i]);
-
-	/*
-	 * B0 of the three matching registers is an enable flag. Iff it is set
-	 * the configured value is used for matching.
-	 */
-	if (buf[S35390A_ALRM_BYTE_WDAY] & 0x80)
-		alm->time.tm_wday =
-			bcd2bin(buf[S35390A_ALRM_BYTE_WDAY] & ~0x80);
-
-	if (buf[S35390A_ALRM_BYTE_HOURS] & 0x80)
-		alm->time.tm_hour =
-			s35390a_reg2hr(s35390a,
-				       buf[S35390A_ALRM_BYTE_HOURS] & ~0x80);
-
-	if (buf[S35390A_ALRM_BYTE_MINS] & 0x80)
-		alm->time.tm_min = bcd2bin(buf[S35390A_ALRM_BYTE_MINS] & ~0x80);
-
-	/* alarm triggers always at s=0 */
-	alm->time.tm_sec = 0;
-
-	dev_dbg(&client->dev, "%s: alm is mins=%d, hours=%d, wday=%d\n",
-			__func__, alm->time.tm_min, alm->time.tm_hour,
-			alm->time.tm_wday);
-
-	return 0;
-}
-
-static int s35390a_rtc_ioctl(struct device *dev, unsigned int cmd,
-			     unsigned long arg)
-{
-	struct i2c_client *client = to_i2c_client(dev);
-	struct s35390a *s35390a = i2c_get_clientdata(client);
-	char sts;
-	int err;
-
-	switch (cmd) {
-	case RTC_VL_READ:
-		/* s35390a_reset set lowvoltage flag and init RTC if needed */
-		err = s35390a_read_status(s35390a, &sts);
-		if (err < 0)
-			return err;
-		if (copy_to_user((void __user *)arg, &err, sizeof(int)))
-			return -EFAULT;
-		break;
-	case RTC_VL_CLR:
-		/* update flag and clear register */
-		err = s35390a_init(s35390a);
-		if (err < 0)
-			return err;
-		break;
-	default:
-		return -ENOIOCTLCMD;
-	}
-
-	return 0;
-}
-
 static const struct rtc_class_ops s35390a_rtc_ops = {
 	.read_time	= s35390a_rtc_read_time,
 	.set_time	= s35390a_rtc_set_time,
-	.set_alarm	= s35390a_rtc_set_alarm,
-	.read_alarm	= s35390a_rtc_read_alarm,
-	.ioctl          = s35390a_rtc_ioctl,
 };
 
 static struct i2c_driver s35390a_driver;
@@ -441,8 +273,7 @@ static int s35390a_probe(struct i2c_client *client,
 		goto exit;
 	}
 
-	s35390a = devm_kzalloc(&client->dev, sizeof(struct s35390a),
-				GFP_KERNEL);
+	s35390a = kzalloc(sizeof(struct s35390a), GFP_KERNEL);
 	if (!s35390a) {
 		err = -ENOMEM;
 		goto exit;
@@ -491,11 +322,8 @@ static int s35390a_probe(struct i2c_client *client,
 		}
 	}
 
-	device_set_wakeup_capable(&client->dev, 1);
-
-	s35390a->rtc = devm_rtc_device_register(&client->dev,
-					s35390a_driver.driver.name,
-					&s35390a_rtc_ops, THIS_MODULE);
+	s35390a->rtc = rtc_device_register(s35390a_driver.driver.name,
+				&client->dev, &s35390a_rtc_ops, THIS_MODULE);
 
 	if (IS_ERR(s35390a->rtc)) {
 		err = PTR_ERR(s35390a->rtc);
@@ -511,6 +339,7 @@ exit_dummy:
 	for (i = 1; i < 8; ++i)
 		if (s35390a->client[i])
 			i2c_unregister_device(s35390a->client[i]);
+	kfree(s35390a);
 
 exit:
 	return err;
@@ -519,11 +348,14 @@ exit:
 static int s35390a_remove(struct i2c_client *client)
 {
 	unsigned int i;
-	struct s35390a *s35390a = i2c_get_clientdata(client);
 
+	struct s35390a *s35390a = i2c_get_clientdata(client);
 	for (i = 1; i < 8; ++i)
 		if (s35390a->client[i])
 			i2c_unregister_device(s35390a->client[i]);
+
+	rtc_device_unregister(s35390a->rtc);
+	kfree(s35390a);
 
 	return 0;
 }
@@ -538,8 +370,19 @@ static struct i2c_driver s35390a_driver = {
 	.id_table	= s35390a_id,
 };
 
-module_i2c_driver(s35390a_driver);
+static int __init s35390a_rtc_init(void)
+{
+	return i2c_add_driver(&s35390a_driver);
+}
+
+static void __exit s35390a_rtc_exit(void)
+{
+	i2c_del_driver(&s35390a_driver);
+}
 
 MODULE_AUTHOR("Byron Bradley <byron.bbradley@gmail.com>");
 MODULE_DESCRIPTION("S35390A RTC driver");
 MODULE_LICENSE("GPL");
+
+module_init(s35390a_rtc_init);
+module_exit(s35390a_rtc_exit);

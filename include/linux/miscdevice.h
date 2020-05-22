@@ -34,6 +34,10 @@
 #define STORE_QUEUE_MINOR	155	/* unused */
 #define I2O_MINOR		166
 #define HWRNG_MINOR		183
+#if defined(CONFIG_MACH_OBSAX3) || defined(CONFIG_MACH_OBSA6) || defined(CONFIG_MACH_OBSA7) || defined(CONFIG_OBS600)
+#define PUSHSW_MINOR   170
+#define SEGLED_MINOR   171
+#endif
 #define MICROCODE_MINOR		184
 #define IRNET_MINOR		187
 #define D7S_MINOR		193

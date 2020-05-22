@@ -102,6 +102,45 @@ static bool store_updates_sp(unsigned int inst)
  * do_page_fault error handling helpers
  */
 
+#if defined(CONFIG_MATH_EMULATION_JAVA)
+static int bad_area_nosemaphore_obs600(struct pt_regs *regs, unsigned long address)
+{
+	/*
+	 * If we are in kernel mode, bail out with a SEGV, this will
+	 * be caught by the assembly which will restore the non-volatile
+	 * registers before calling bad_page_fault()
+	 */
+	if (!user_mode(regs)) {
+        siginfo_t info;
+	    // for Sun Java
+	    current->thread.regs->dar = regs->dar;
+	    current->thread.regs->nip -= 4;
+        info.si_signo = SIGSEGV;
+        info.si_code = SEGV_MAPERR;
+        info.si_addr = (void __user *)address;
+	    force_sig_info(SIGSEGV, &info, current);
+		return SIGSEGV;
+    }
+
+	_exception_pkey(SIGSEGV, regs, SEGV_MAPERR, address, 0);
+
+	return 0;
+}
+static int __bad_area_obs600(struct pt_regs *regs, unsigned long address)
+{
+	struct mm_struct *mm = current->mm;
+
+	/*
+	 * Something tried to access memory that isn't in our memory map..
+	 * Fix it, but check if it's kernel or user first..
+	 */
+	up_read(&mm->mmap_sem);
+
+	return bad_area_nosemaphore_obs600(regs, address);
+}
+
+#endif
+
 static int
 __bad_area_nosemaphore(struct pt_regs *regs, unsigned long address, int si_code,
 		int pkey)
@@ -140,7 +179,11 @@ static int __bad_area(struct pt_regs *regs, unsigned long address, int si_code,
 
 static noinline int bad_area(struct pt_regs *regs, unsigned long address)
 {
+#if defined(CONFIG_MATH_EMULATION_JAVA)
+	return __bad_area_obs600(regs, address);
+#else
 	return __bad_area(regs, address, SEGV_MAPERR, 0);
+#endif
 }
 
 static int bad_key_fault_exception(struct pt_regs *regs, unsigned long address,
@@ -492,8 +535,13 @@ static int __do_page_fault(struct pt_regs *regs, unsigned long address,
 	 * thus avoiding the deadlock.
 	 */
 	if (unlikely(!down_read_trylock(&mm->mmap_sem))) {
-		if (!is_user && !search_exception_tables(regs->nip))
+		if (!is_user && !search_exception_tables(regs->nip)) {
+#if defined(CONFIG_MATH_EMULATION_JAVA)
+			return bad_area_nosemaphore_obs600(regs, address);
+#else
 			return bad_area_nosemaphore(regs, address);
+#endif
+		}
 
 retry:
 		down_read(&mm->mmap_sem);
@@ -522,8 +570,13 @@ retry:
 
 		up_read(&mm->mmap_sem);
 		if (fault_in_pages_readable((const char __user *)regs->nip,
-					    sizeof(unsigned int)))
+					    sizeof(unsigned int))) {
+#if defined(CONFIG_MATH_EMULATION_JAVA)
+			return bad_area_nosemaphore_obs600(regs, address);
+#else
 			return bad_area_nosemaphore(regs, address);
+#endif
+		}
 		goto retry;
 	}
 

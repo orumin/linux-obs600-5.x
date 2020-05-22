@@ -56,12 +56,40 @@
 			/* NOR 128 MiB */
 			nor@0 {
 				compatible = "cfi-flash";
+				linux,mtd-name = "cfi_flash_0";
 				reg = <0 0x8000000>;
 				bank-width = <2>;
 			};
 		};
 
 		internal-regs {
+			gpio3: gpio@18148 {
+				compatible = "marvell,orion-gpio-blen";
+				reg = <0x18148 0x20>;
+				ngpios = <32>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+			};
+			gpio4: gpio@181c0 {
+				compatible = "marvell,orion-gpio-blon";
+				reg = <0x181c0 0x20>;
+				ngpios = <32>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+			};
+			gpio5: gpio@181c4 {
+				compatible = "marvell,orion-gpio-bloff";
+				reg = <0x181c4 0x20>;
+				ngpios = <32>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+			};
 			rtc@10300 {
 				/* No crystal connected to the internal RTC */
 				status = "disabled";
@@ -165,13 +193,15 @@
 				status = "okay";
 			};
 
-			bm@c0000 {
+			/* Internal USB 3 */
+			usb@52000 {
 				status = "okay";
 			};
-		};
 
-		bm-bppi {
-			status = "okay";
+			/* Internal USB 4 */
+			usb@53000 {
+				status = "okay";
+			};
 		};
 	};
 };

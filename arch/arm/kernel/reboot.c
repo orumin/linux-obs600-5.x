@@ -13,6 +13,9 @@
 #include <asm/cacheflush.h>
 #include <asm/idmap.h>
 #include <asm/virt.h>
+#if defined(CONFIG_MACH_OBSAX3) || defined(CONFIG_MACH_OBSA7)
+#include <linux/platform_data/openblocks.h>
+#endif
 
 #include "reboot.h"
 
@@ -107,7 +110,26 @@ void machine_halt(void)
 {
 	local_irq_disable();
 	smp_send_stop();
+<<<<<<< HEAD
+=======
+
+	local_irq_disable();
+#if defined(CONFIG_MACH_OBSAX3)
+	obs_blink_led();
+	while (1){
+		msleep(1000);
+	}
+#elif defined(CONFIG_MACH_OBSA7)
+	while (1){
+		obs_blink_led(0);
+		mdelay(500);
+		obs_blink_led(1);
+		mdelay(500);
+	}
+#else
+>>>>>>> 8bf231cf2ad7... obs600: apply patch for OpenBlockS 600
 	while (1);
+#endif
 }
 
 /*
