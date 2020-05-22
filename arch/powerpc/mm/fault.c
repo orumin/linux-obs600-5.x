@@ -212,6 +212,9 @@ int __kprobes do_page_fault(struct pt_regs *regs, unsigned long address,
 	struct vm_area_struct * vma;
 	struct mm_struct *mm = current->mm;
 	unsigned int flags = FAULT_FLAG_ALLOW_RETRY | FAULT_FLAG_KILLABLE;
+#if defined(CONFIG_MATH_EMULATION_JAVA)
+	siginfo_t info;
+#endif
 	int code = SEGV_MAPERR;
 	int is_write = 0;
 	int trap = TRAP(regs);
@@ -492,6 +495,16 @@ bad_area_nosemaphore:
 				   " page (%lx) - exploit attempt? (uid: %d)\n",
 				   address, from_kuid(&init_user_ns, current_uid()));
 
+#if defined(CONFIG_MATH_EMULATION_JAVA)
+	// for Sun Java
+	current->thread.regs->dar = regs->dar;
+	current->thread.regs->nip -= 4;
+	memset(&info, 0, sizeof(info));
+	info.si_signo = SIGSEGV;
+	info.si_code = code;
+	info.si_addr = (void __user *) address;
+	force_sig_info(SIGSEGV, &info, current);
+#endif
 	rc = SIGSEGV;
 
 bail:

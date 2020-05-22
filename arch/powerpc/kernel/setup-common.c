@@ -61,6 +61,10 @@
 #include <asm/cputhreads.h>
 #include <mm/mmu_decl.h>
 #include <asm/fadump.h>
+#if defined(CONFIG_OBS600)
+extern int obsled_out(int);
+#define BLINK_MSEC (1000)
+#endif
 
 #ifdef DEBUG
 #include <asm/udbg.h>
@@ -133,7 +137,16 @@ void machine_restart(char *cmd)
 #endif
 	printk(KERN_EMERG "System Halted, OK to turn off power\n");
 	local_irq_disable();
+#if defined(CONFIG_OBS_LED)
+	while(1){
+		obsled_out(7);
+		mdelay(BLINK_MSEC);
+		obsled_out(0);
+		mdelay(BLINK_MSEC);
+	}
+#else
 	while (1) ;
+#endif
 }
 
 void machine_power_off(void)
@@ -146,7 +159,16 @@ void machine_power_off(void)
 #endif
 	printk(KERN_EMERG "System Halted, OK to turn off power\n");
 	local_irq_disable();
+#if defined(CONFIG_OBS_LED)
+	while(1){
+		obsled_out(7);
+		mdelay(BLINK_MSEC);
+		obsled_out(0);
+		mdelay(BLINK_MSEC);
+	}
+#else
 	while (1) ;
+#endif
 }
 /* Used by the G5 thermal driver */
 EXPORT_SYMBOL_GPL(machine_power_off);
@@ -164,7 +186,16 @@ void machine_halt(void)
 #endif
 	printk(KERN_EMERG "System Halted, OK to turn off power\n");
 	local_irq_disable();
+#if defined(CONFIG_OBS_LED)
+	while(1){
+		obsled_out(7);
+		mdelay(BLINK_MSEC);
+		obsled_out(0);
+		mdelay(BLINK_MSEC);
+	}
+#else
 	while (1) ;
+#endif
 }
 
 

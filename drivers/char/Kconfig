@@ -611,5 +611,15 @@ config TILE_SROM
 
 source "drivers/char/xillybus/Kconfig"
 
+config OBS_LED
+	bool "OpenBlockS Family LED driver"
+	depends on MACH_OBSAX3 || MACH_OBSA6 || MACH_OBSA7 || OBS600
+	default y
+
+config OBS_PUSHSW
+	bool "OpenBlockS Family PUSH SW driver"
+	depends on MACH_OBSAX3 || MACH_OBSA6 || MACH_OBSA7 || OBS600
+	default y
+
 endmenu
 

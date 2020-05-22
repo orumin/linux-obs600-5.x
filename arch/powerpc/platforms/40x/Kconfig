@@ -25,6 +25,19 @@ config HOTFOOT
         help
 	 This option enables support for the ESTEEM 195E Hotfoot board.
 
+config OBS600
+	bool "OpenBlockS 600"
+	depends on 40x
+	default n
+	select 405EX
+	select PPC40x_SIMPLE
+	select PPC4xx_PCI_EXPRESS
+	select OBS600_RTC
+	select OBS600_LED
+	select OBS600_PUSHSW
+	help
+		This option enables support for the Plathome OpenBlockS 600.
+
 config KILAUEA
 	bool "Kilauea"
 	depends on 40x
@@ -74,16 +87,6 @@ config XILINX_VIRTEX_GENERIC_BOARD
 
 	  Most Virtex designs should use this unless it needs to do some
 	  special configuration at board probe time.
-
-config OBS600
-	bool "OpenBlockS 600"
-	depends on 40x
-	default n
-	select 405EX
-	select PPC40x_SIMPLE
-	help
-	  This option enables support for PlatHome OpenBlockS 600 server
-
 
 config PPC40x_SIMPLE
 	bool "Simple PowerPC 40x board support"

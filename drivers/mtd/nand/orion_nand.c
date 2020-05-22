@@ -160,7 +160,7 @@ static int __init orion_nand_probe(struct platform_device *pdev)
 		goto no_dev;
 	}
 
-	mtd->name = "orion_nand";
+	mtd->name = "nand_mtd";
 	ppdata.of_node = pdev->dev.of_node;
 	ret = mtd_device_parse_register(mtd, NULL, &ppdata,
 			board->parts, board->nr_parts);
