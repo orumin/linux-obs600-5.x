@@ -437,6 +437,7 @@ void __mnt_drop_write(struct vfsmount *mnt)
 	mnt_dec_writers(real_mount(mnt));
 	preempt_enable();
 }
+EXPORT_SYMBOL_GPL(__mnt_drop_write);
 
 /**
  * mnt_drop_write - give up write access to a mount
@@ -769,6 +770,13 @@ static inline int check_mnt(struct mount *mnt)
 {
 	return mnt->mnt_ns == current->nsproxy->mnt_ns;
 }
+
+/* for aufs, CONFIG_AUFS_BR_FUSE */
+int is_current_mnt_ns(struct vfsmount *mnt)
+{
+	return check_mnt(real_mount(mnt));
+}
+EXPORT_SYMBOL_GPL(is_current_mnt_ns);
 
 /*
  * vfsmount lock must be held for write
@@ -1238,46 +1246,80 @@ struct vfsmount *mnt_clone_internal(const struct path *path)
 
 #ifdef CONFIG_PROC_FS
 /* iterator; we want it to have access to namespace_sem, thus here... */
-static void *m_start(struct seq_file *m, loff_t *pos)
+static int m_start_fill(struct seq_file *m)
 {
+	int err;
+	size_t last_count;
+	char *buf;
+	struct mount *r;
 	struct proc_mounts *p = m->private;
 
+	err = -ENODATA;
+	m->count = 0;
 	down_read(&namespace_sem);
-	if (p->cached_event == p->ns->event) {
-		void *v = p->cached_mount;
-		if (*pos == p->cached_index)
-			return v;
-		if (*pos == p->cached_index + 1) {
-			v = seq_list_next(v, &p->ns->list, &p->cached_index);
-			return p->cached_mount = v;
+	list_for_each_entry(r, &p->ns->list, mnt_list) {
+		last_count = m->count;
+		err = p->show(m, &r->mnt);
+		if (unlikely(err < 0))
+			break;
+		if (!seq_has_overflowed(m))
+			continue;
+
+		/* expand the buffer */
+		buf = kvmalloc(m->size + PAGE_SIZE, GFP_KERNEL);
+		if (unlikely(!buf)) {
+			err = -ENOMEM;
+			break;
 		}
+		memcpy(buf, m->buf, last_count);
+		kvfree(m->buf);
+		m->buf = buf;
+		m->size += PAGE_SIZE;
+		m->count = last_count;
+
+#if 0 /* todo: consider the limit */
+		err = p->show(m, &r->mnt);
+		if (unlikely(err < 0))
+			break;
+		else if (unlikely(seq_has_overflowed(m))) {
+			err = -EOVERFLOW;
+			break;
+		}
+#endif
+	}
+	up_read(&namespace_sem);
+
+	if (!err)
+		p->filled = m->count;
+	return err;
+}
+
+static void *m_start(struct seq_file *m, loff_t *pos)
+{
+	int err;
+
+	if (!*pos) {
+		err = m_start_fill(m);
+		if (unlikely(err))
+			return ERR_PTR(err);
 	}
 
-	p->cached_event = p->ns->event;
-	p->cached_mount = seq_list_start(&p->ns->list, *pos);
-	p->cached_index = *pos;
-	return p->cached_mount;
+	return m_start; /* any valid pointer */
 }
 
 static void *m_next(struct seq_file *m, void *v, loff_t *pos)
 {
-	struct proc_mounts *p = m->private;
-
-	p->cached_mount = seq_list_next(v, &p->ns->list, pos);
-	p->cached_index = *pos;
-	return p->cached_mount;
+	return NULL;
 }
 
 static void m_stop(struct seq_file *m, void *v)
 {
-	up_read(&namespace_sem);
+	/* empty */
 }
 
 static int m_show(struct seq_file *m, void *v)
 {
-	struct proc_mounts *p = m->private;
-	struct mount *r = list_entry(v, struct mount, mnt_list);
-	return p->show(m, &r->mnt);
+	return 0;
 }
 
 const struct seq_operations mounts_op = {
@@ -1838,6 +1880,7 @@ int iterate_mounts(int (*f)(struct vfsmount *, void *), void *arg,
 	}
 	return 0;
 }
+EXPORT_SYMBOL_GPL(iterate_mounts);
 
 static void cleanup_group_ids(struct mount *mnt, struct mount *end)
 {

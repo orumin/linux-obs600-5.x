@@ -140,7 +140,7 @@ static struct lock_list list_entries[MAX_LOCKDEP_ENTRIES];
 unsigned long nr_lock_classes;
 static struct lock_class lock_classes[MAX_LOCKDEP_KEYS];
 
-static inline struct lock_class *hlock_class(struct held_lock *hlock)
+inline struct lock_class *lockdep_hlock_class(struct held_lock *hlock)
 {
 	if (!hlock->class_idx) {
 		/*
@@ -151,6 +151,8 @@ static inline struct lock_class *hlock_class(struct held_lock *hlock)
 	}
 	return lock_classes + hlock->class_idx - 1;
 }
+EXPORT_SYMBOL_GPL(lockdep_hlock_class);
+#define hlock_class(hlock) lockdep_hlock_class(hlock)
 
 #ifdef CONFIG_LOCK_STAT
 static DEFINE_PER_CPU(struct lock_class_stats[MAX_LOCKDEP_KEYS], cpu_lock_stats);
@@ -731,6 +733,58 @@ static bool assign_lock_key(struct lockdep_map *lock)
 	return true;
 }
 
+static bool unused_lock_class_test(unsigned long u)
+{
+	struct lock_class *class;
+
+	/* cf. zap_class() */
+	class = lock_classes + u;
+	return !rcu_access_pointer(class->name)
+		&& !rcu_access_pointer(class->key)
+		&& list_empty(&class->lock_entry)
+		&& hlist_unhashed(&class->hash_entry);
+}
+
+static struct lock_class *unused_lock_class(void)
+{
+	struct lock_class *class;
+	unsigned long u;
+	static unsigned long lastu;
+
+	/* uncomment if you want to confirm */
+	/*
+	 * DEBUG_LOCKS_WARN_ON(debug_locks
+	 *		    && !arch_spin_is_locked(&lockdep_lock));
+	 */
+
+	/* slow linear search */
+	class = NULL;
+	for (u = lastu; u < MAX_LOCKDEP_KEYS; u++)
+		if (unused_lock_class_test(u)) {
+			/* pr_debug("%s:%d: u %lu\n", __func__, __LINE__, u); */
+			class = lock_classes + u;
+			break;
+		}
+	if (!class && lastu)
+		for (u = 0; u < lastu; u++) {
+			if (unused_lock_class_test(u)) {
+				/*
+				 * pr_debug("%s:%d: u %lu\n",
+				 *	     __func__, __LINE__, u);
+				 */
+				class = lock_classes + u;
+				break;
+			}
+		}
+	if (class) {
+		class->name = ""; /* mark reserved */
+		lastu = u + 1;
+	} else
+		lastu = 0;
+
+	return class;
+}
+
 /*
  * Register a lock's class in the hash-table, if the class is not present
  * yet. Otherwise we look it up. We cache the result in the lock object
@@ -775,16 +829,21 @@ register_lock_class(struct lockdep_map *lock, unsigned int subclass, int force)
 	 * Allocate a new key from the static array, and add it to
 	 * the hash:
 	 */
-	if (nr_lock_classes >= MAX_LOCKDEP_KEYS) {
-		if (!debug_locks_off_graph_unlock()) {
+	if (nr_lock_classes < MAX_LOCKDEP_KEYS)
+		class = lock_classes + nr_lock_classes++;
+	else {
+		class = unused_lock_class();
+		if (class)
+			class->usage_mask = 0;
+		else {
+			if (!debug_locks_off_graph_unlock())
+				return NULL;
+
+			print_lockdep_off("BUG: MAX_LOCKDEP_KEYS too low!");
+			dump_stack();
 			return NULL;
 		}
-
-		print_lockdep_off("BUG: MAX_LOCKDEP_KEYS too low!");
-		dump_stack();
-		return NULL;
 	}
-	class = lock_classes + nr_lock_classes++;
 	debug_atomic_inc(nr_unused_locks);
 	class->key = key;
 	class->name = lock->name;
@@ -4181,24 +4240,29 @@ void lockdep_reset(void)
 		INIT_HLIST_HEAD(chainhash_table + i);
 	raw_local_irq_restore(flags);
 }
+/* EXPORT_SYMBOL_GPL(lock_reset); */
 
 static void zap_class(struct lock_class *class)
 {
 	int i;
 
 	/*
+	 * pr_debug("%s:%d: %lu\n",
+	 *	 __func__, __LINE__, class - lock_classes);
+	 */
+	/*
 	 * Remove all dependencies this lock is
 	 * involved in:
 	 */
 	for (i = 0; i < nr_list_entries; i++) {
 		if (list_entries[i].class == class)
-			list_del_rcu(&list_entries[i].entry);
+			list_del_init_rcu(&list_entries[i].entry);
 	}
 	/*
 	 * Unhash the class and remove it from the all_lock_classes list:
 	 */
-	hlist_del_rcu(&class->hash_entry);
-	list_del_rcu(&class->lock_entry);
+	hlist_del_init_rcu(&class->hash_entry);
+	list_del_init_rcu(&class->lock_entry);
 
 	RCU_INIT_POINTER(class->key, NULL);
 	RCU_INIT_POINTER(class->name, NULL);

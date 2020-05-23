@@ -132,6 +132,16 @@ static inline void list_del_rcu(struct list_head *entry)
 }
 
 /**
+ * list_del_init_rcu - deletes entry from list with re-initialization
+ * @entry: the element to delete from the list.
+*/
+static inline void list_del_init_rcu(struct list_head *entry)
+{
+	__list_del_entry(entry);
+	INIT_LIST_HEAD(entry);
+}
+
+/**
  * hlist_del_init_rcu - deletes entry from hash list with re-initialization
  * @n: the element to delete from the hash list.
  *
