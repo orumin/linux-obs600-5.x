@@ -311,9 +311,9 @@ static int32_t dwc_otg_hcd_disconnect_cb( void *_p )
  * Connection timeout function.  An OTG host is required to display a
  * message if the device does not connect within 10 seconds.
  */
-void dwc_otg_hcd_connect_timeout( unsigned long _ptr )
+void dwc_otg_hcd_connect_timeout( struct timer_list *_ptr )
 {
-	DWC_DEBUGPL(DBG_HCDV, "%s(%x)\n", __func__, (int)_ptr);
+	DWC_DEBUGPL(DBG_HCDV, "%s(%x)\n", __func__, _ptr);
 	DWC_PRINT( "Connect Timeout\n");
 	DWC_ERROR( "Device Not Connected/Responding\n" );
 }
@@ -326,9 +326,7 @@ void dwc_otg_hcd_connect_timeout( unsigned long _ptr )
  */
 static void dwc_otg_hcd_start_connect_timer( dwc_otg_hcd_t *_hcd)
 {
-	init_timer( &_hcd->conn_timer );
-	_hcd->conn_timer.function = dwc_otg_hcd_connect_timeout;
-	_hcd->conn_timer.data = (unsigned long)0;
+	timer_setup(&_hcd->conn_timer, dwc_otg_hcd_connect_timeout, 0);
 	_hcd->conn_timer.expires = jiffies + (HZ*10);
 	add_timer( &_hcd->conn_timer );
 }
@@ -463,14 +461,14 @@ int dwc_otg_hcd_init(struct device *_dev, dwc_otg_device_t * dwc_otg_device)
 		channel->hc_num = i;
 		dwc_otg_hcd->hc_ptr_array[i] = channel;
 #ifdef DEBUG
-		init_timer(&dwc_otg_hcd->core_if->hc_xfer_timer[i]);
+		timer_setup(&dwc_otg_hcd->core_if->hc_xfer_timer[i], dwc_otg_hcd_connect_timeout, 0);
 #endif		
 
 		DWC_DEBUGPL(DBG_HCDV, "HCD Added channel #%d, hc=%p\n", i, channel);
 	}
 
 	/* Initialize the Connection timeout timer. */
-	init_timer( &dwc_otg_hcd->conn_timer );
+	timer_setup( &dwc_otg_hcd->conn_timer, dwc_otg_hcd_connect_timeout, 0);
 
 	/* Initialize reset tasklet. */
 	reset_tasklet.data = (unsigned long) dwc_otg_hcd;
