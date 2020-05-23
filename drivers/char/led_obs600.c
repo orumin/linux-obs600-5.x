@@ -9,9 +9,10 @@
 #include <linux/fcntl.h>
 #include <linux/init.h>
 //#include <linux/smp_lock.h>
+#include <linux/uaccess.h>
 
 #include <asm/io.h>
-#include <asm/uaccess.h>
+//#include <asm/uaccess.h>
 //#include <asm/system.h>
 
 #define GPIO0_BASE	0xef600800		/* GPIO0 Base Address */
